@@ -6,8 +6,8 @@ const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 const USERS = [
-  { id: "A", name: "작업자 A", color: "#1D9E75", bg: "#E1F5EE" },
-  { id: "B", name: "작업자 B", color: "#185FA5", bg: "#E6F1FB" },
+  { id: "A", name: "김근식", color: "#1D9E75", bg: "#E1F5EE" },
+  { id: "B", name: "김현욱", color: "#185FA5", bg: "#E6F1FB" },
 ];
 const CATEGORIES = ["치수 측정", "자재 확인", "안전 점검", "공정 현황", "기타"];
 const UNITS = ["mm", "cm", "m", "kg", "ton", "ea", "%"];
