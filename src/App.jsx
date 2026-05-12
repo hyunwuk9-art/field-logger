@@ -42,46 +42,25 @@ function SketchPad({ onSave, onCancel }) {
     const src = e.touches ? e.touches[0] : e;
     return { x: src.clientX - rect.left, y: src.clientY - rect.top };
   };
-
-  const start = (e) => {
-    e.preventDefault();
-    drawing.current = true;
-    const canvas = canvasRef.current;
-    lastPos.current = getPos(e, canvas);
-  };
+  const start = (e) => { e.preventDefault(); drawing.current = true; lastPos.current = getPos(e, canvasRef.current); };
   const move = (e) => {
     e.preventDefault();
     if (!drawing.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     const pos = getPos(e, canvas);
-    ctx.beginPath();
-    ctx.moveTo(lastPos.current.x, lastPos.current.y);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.strokeStyle = "#1a1a1a";
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = "round";
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(lastPos.current.x, lastPos.current.y);
+    ctx.lineTo(pos.x, pos.y); ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.stroke();
     lastPos.current = pos;
   };
   const end = (e) => { e.preventDefault(); drawing.current = false; };
-
-  const clear = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  };
-
-  const save = () => {
-    const canvas = canvasRef.current;
-    const data = canvas.toDataURL("image/png");
-    onSave(data);
-  };
+  const clear = () => { const ctx = canvasRef.current.getContext("2d"); ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); };
+  const save = () => onSave(canvasRef.current.toDataURL("image/png"));
 
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ background: "#fff", borderRadius: 16, padding: 16, width: "100%", maxWidth: 440 }}>
-        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, color: "#111" }}>스케치 그리기</div>
+        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>스케치 그리기</div>
         <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>손가락으로 자유롭게 그려주세요</div>
         <canvas ref={canvasRef} width={400} height={300}
           style={{ width: "100%", height: 280, border: "2px solid #dde1e7", borderRadius: 10, background: "#fafafa", touchAction: "none", cursor: "crosshair" }}
@@ -116,6 +95,7 @@ export default function App() {
   const [filterDate, setFilterDate] = useState("");
   const [activeTab, setActiveTab] = useState("input");
   const [expandedSketch, setExpandedSketch] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const fetchRecords = useCallback(async () => {
     setLoading(true); setError(null);
@@ -132,9 +112,20 @@ export default function App() {
     const channel = supabase.channel("field_records_changes")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "field_records" },
         (payload) => { setRecords((prev) => [rowToRecord(payload.new), ...prev]); })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "field_records" },
+        (payload) => { setRecords((prev) => prev.filter((r) => r.id !== payload.old.id)); })
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, [fetchRecords]);
+
+  const handleDelete = async (id) => {
+    try {
+      const { error: err } = await supabase.from("field_records").delete().eq("id", id);
+      if (err) throw err;
+      setRecords((prev) => prev.filter((r) => r.id !== id));
+      setDeleteConfirm(null);
+    } catch (e) { setError("삭제 실패: " + e.message); }
+  };
 
   const handleSubmit = useCallback(async () => {
     if (!memo.trim() && !width.trim() && !height.trim() && !depth.trim()) return;
@@ -142,8 +133,7 @@ export default function App() {
     try {
       const { error: err } = await supabase.from("field_records").insert({
         user_id: currentUser.id, user_name: currentUser.name, category,
-        value: "",
-        unit: "",
+        value: "", unit: "",
         memo: "__DIM__|" + width.trim() + "|" + height.trim() + "|" + depth.trim() + "|" + memo.trim() + "|" + unit + "|" + sketch,
         has_photo: hasPhoto, photo_name: photoName,
       });
@@ -178,6 +168,19 @@ export default function App() {
       {expandedSketch && (
         <div onClick={() => setExpandedSketch(null)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <img src={expandedSketch} style={{ maxWidth: "100%", maxHeight: "90vh", borderRadius: 12 }} />
+        </div>
+      )}
+      {deleteConfirm && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "#fff", borderRadius: 16, padding: 24, width: "100%", maxWidth: 320, textAlign: "center" }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🗑️</div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>기록을 삭제할까요?</div>
+            <div style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>삭제하면 복구할 수 없어요</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setDeleteConfirm(null)} style={{ flex: 1, padding: "14px", borderRadius: 10, border: "1.5px solid #dde1e7", background: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>취소</button>
+              <button onClick={() => handleDelete(deleteConfirm)} style={{ flex: 1, padding: "14px", borderRadius: 10, border: "none", background: "#e24b4a", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>삭제</button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -312,12 +315,17 @@ export default function App() {
                   <div key={rec.id} style={{ position: "relative", marginBottom: 14 }}>
                     <div style={{ position: "absolute", left: -24, top: 16, width: 12, height: 12, borderRadius: "50%", background: rec.user.color, border: "2px solid #fff" }} />
                     <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e6e9ef", padding: "14px 16px", borderLeft: "4px solid " + rec.user.color }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: rec.user.color }}>{rec.user.name}</span>
-                        <span style={{ fontSize: 11, color: "#aaa" }}>{formatTime(rec.date)}</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: rec.user.color }}>{rec.user.name}</span>
+                          <span style={{ fontSize: 11, color: "#aaa" }}>{formatTime(rec.date)}</span>
+                        </div>
+                        <button onClick={() => setDeleteConfirm(rec.id)}
+                          style={{ background: "#fff0f0", border: "none", borderRadius: 8, padding: "6px 10px", color: "#e24b4a", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>
+                          🗑️ 삭제
+                        </button>
                       </div>
                       <span style={{ display: "inline-block", background: "#f4f6fa", color: "#555", fontSize: 11, fontWeight: 600, borderRadius: 6, padding: "3px 10px", marginBottom: 8 }}>{rec.category}</span>
-
                       {(rec.width || rec.height || rec.depth) && (
                         <div style={{ background: "#f0fdf8", borderRadius: 8, padding: "10px 14px", marginBottom: 8, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                           {rec.width && <div style={{ textAlign: "center" }}><div style={{ fontSize: 10, color: "#5DCAA5" }}>가로(W)</div><div style={{ fontSize: 20, fontWeight: 800, color: "#0F6E56" }}>{rec.width}</div></div>}
@@ -328,7 +336,6 @@ export default function App() {
                           <div style={{ fontSize: 12, color: "#5DCAA5", fontWeight: 600 }}>{rec.unit}</div>
                         </div>
                       )}
-
                       {rec.sketch && (
                         <div style={{ marginBottom: 8 }}>
                           <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>스케치</div>
@@ -337,7 +344,6 @@ export default function App() {
                           <div style={{ fontSize: 11, color: "#aaa", marginTop: 2 }}>탭하면 크게 볼 수 있어요</div>
                         </div>
                       )}
-
                       {rec.memo && <p style={{ fontSize: 14, color: "#333", lineHeight: 1.6, margin: 0 }}>{rec.memo}</p>}
                       {rec.hasPhoto && (
                         <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff8e6", borderRadius: 8, padding: "8px 12px", marginTop: 8 }}>
