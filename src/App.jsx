@@ -6,8 +6,8 @@ const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 const USERS = [
-  { id: "A", name: "김근식", color: "#1D9E75", bg: "#E1F5EE" },
-  { id: "B", name: "김현욱", color: "#185FA5", bg: "#E6F1FB" },
+  { id: "A", name: "김현욱", color: "#1D9E75", bg: "#E1F5EE" },
+  { id: "B", name: "김근식", color: "#185FA5", bg: "#E6F1FB" },
 ];
 const CATEGORIES = ["치수 측정", "자재 확인", "안전 점검", "공정 현황", "기타"];
 const UNITS = ["mm", "cm", "m", "kg", "ton", "ea", "%"];
@@ -29,14 +29,13 @@ function rowToRecord(row) {
     width = parts[1] || ""; height = parts[2] || ""; depth = parts[3] || "";
     memo = parts[4] || ""; unit = parts[5] || "mm"; sketch = parts[6] || "";
   }
-  return { id: row.id, user, category: row.category, width, height, depth, memo, unit, sketch, hasPhoto: row.has_photo, photoName: row.photo_name, date: row.created_at };
+  return { id: row.id, user, category: row.category, width, height, depth, memo, unit, sketch, photoUrl: row.photo_name && row.has_photo ? row.photo_name : "", hasPhoto: row.has_photo, date: row.created_at };
 }
 
 function SketchPad({ onSave, onCancel }) {
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const lastPos = useRef(null);
-
   const getPos = (e, canvas) => {
     const rect = canvas.getBoundingClientRect();
     const src = e.touches ? e.touches[0] : e;
@@ -56,7 +55,6 @@ function SketchPad({ onSave, onCancel }) {
   const end = (e) => { e.preventDefault(); drawing.current = false; };
   const clear = () => { const ctx = canvasRef.current.getContext("2d"); ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); };
   const save = () => onSave(canvasRef.current.toDataURL("image/png"));
-
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ background: "#fff", borderRadius: 16, padding: 16, width: "100%", maxWidth: 440 }}>
@@ -88,14 +86,15 @@ export default function App() {
   const [depth, setDepth] = useState("");
   const [unit, setUnit] = useState("mm");
   const [memo, setMemo] = useState("");
-  const [hasPhoto, setHasPhoto] = useState(false);
-  const [photoName, setPhotoName] = useState("");
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState("");
   const [sketch, setSketch] = useState("");
   const [showSketch, setShowSketch] = useState(false);
   const [filterDate, setFilterDate] = useState("");
   const [activeTab, setActiveTab] = useState("input");
-  const [expandedSketch, setExpandedSketch] = useState(null);
+  const [expandedImg, setExpandedImg] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const fileRef = useRef();
 
   const fetchRecords = useCallback(async () => {
     setLoading(true); setError(null);
@@ -118,6 +117,41 @@ export default function App() {
     return () => supabase.removeChannel(channel);
   }, [fetchRecords]);
 
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const handleSubmit = useCallback(async () => {
+    if (!memo.trim() && !width.trim() && !height.trim() && !depth.trim()) return;
+    setSaving(true); setError(null);
+    try {
+      let photoUrl = "";
+      if (photoFile) {
+        const ext = photoFile.name.split(".").pop();
+        const fileName = Date.now() + "." + ext;
+        const { error: upErr } = await supabase.storage.from("photos").upload(fileName, photoFile);
+        if (upErr) throw upErr;
+        const { data: urlData } = supabase.storage.from("photos").getPublicUrl(fileName);
+        photoUrl = urlData.publicUrl;
+      }
+      const { error: err } = await supabase.from("field_records").insert({
+        user_id: currentUser.id, user_name: currentUser.name, category,
+        value: "", unit: "",
+        memo: "__DIM__|" + width.trim() + "|" + height.trim() + "|" + depth.trim() + "|" + memo.trim() + "|" + unit + "|" + sketch,
+        has_photo: !!photoUrl,
+        photo_name: photoUrl,
+      });
+      if (err) throw err;
+      setWidth(""); setHeight(""); setDepth(""); setMemo(""); setSketch("");
+      setPhotoFile(null); setPhotoPreview("");
+      setActiveTab("list");
+    } catch (e) { setError("저장 실패: " + e.message); }
+    finally { setSaving(false); }
+  }, [currentUser, category, width, height, depth, unit, memo, sketch, photoFile]);
+
   const handleDelete = async (id) => {
     try {
       const { error: err } = await supabase.from("field_records").delete().eq("id", id);
@@ -125,28 +159,6 @@ export default function App() {
       setRecords((prev) => prev.filter((r) => r.id !== id));
       setDeleteConfirm(null);
     } catch (e) { setError("삭제 실패: " + e.message); }
-  };
-
-  const handleSubmit = useCallback(async () => {
-    if (!memo.trim() && !width.trim() && !height.trim() && !depth.trim()) return;
-    setSaving(true); setError(null);
-    try {
-      const { error: err } = await supabase.from("field_records").insert({
-        user_id: currentUser.id, user_name: currentUser.name, category,
-        value: "", unit: "",
-        memo: "__DIM__|" + width.trim() + "|" + height.trim() + "|" + depth.trim() + "|" + memo.trim() + "|" + unit + "|" + sketch,
-        has_photo: hasPhoto, photo_name: photoName,
-      });
-      if (err) throw err;
-      setWidth(""); setHeight(""); setDepth(""); setMemo(""); setSketch(""); setHasPhoto(false); setPhotoName("");
-      setActiveTab("list");
-    } catch (e) { setError("저장 실패: " + e.message); }
-    finally { setSaving(false); }
-  }, [currentUser, category, width, height, depth, unit, memo, sketch, hasPhoto, photoName]);
-
-  const handlePhotoSim = () => {
-    const names = ["현장_전경.jpg", "실측_사진.jpg", "자재_확인.jpg", "안전_점검.jpg"];
-    setHasPhoto(true); setPhotoName(names[Math.floor(Math.random() * names.length)]);
   };
 
   const grouped = records.reduce((acc, r) => {
@@ -165,9 +177,9 @@ export default function App() {
   return (
     <div style={{ fontFamily: "sans-serif", background: "#f4f6fa", minHeight: "100vh", maxWidth: 480, margin: "0 auto" }}>
       {showSketch && <SketchPad onSave={(data) => { setSketch(data); setShowSketch(false); }} onCancel={() => setShowSketch(false)} />}
-      {expandedSketch && (
-        <div onClick={() => setExpandedSketch(null)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-          <img src={expandedSketch} style={{ maxWidth: "100%", maxHeight: "90vh", borderRadius: 12 }} />
+      {expandedImg && (
+        <div onClick={() => setExpandedImg(null)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <img src={expandedImg} style={{ maxWidth: "100%", maxHeight: "90vh", borderRadius: 12 }} />
         </div>
       )}
       {deleteConfirm && (
@@ -269,14 +281,20 @@ export default function App() {
           <textarea placeholder="현장 상황, 특이사항 등을 입력하세요" value={memo} onChange={(e) => setMemo(e.target.value)} rows={4} style={{ ...inputStyle, resize: "none", lineHeight: 1.6, marginBottom: 16 }} />
 
           <label style={labelStyle}>사진</label>
-          <button onClick={handlePhotoSim}
-            style={{ width: "100%", padding: "18px", borderRadius: 12, border: "2px dashed " + (hasPhoto ? "#0F6E56" : "#adb5c2"), background: hasPhoto ? "#E1F5EE" : "#fff", color: hasPhoto ? "#0F6E56" : "#888", fontSize: 15, fontWeight: 600, cursor: "pointer", marginBottom: 4 }}>
-            {hasPhoto ? "사진첨부: " + photoName : "사진 업로드 (탭하여 시뮬레이션)"}
+          <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} style={{ display: "none" }} />
+          <button onClick={() => fileRef.current.click()}
+            style={{ width: "100%", padding: "18px", borderRadius: 12, border: "2px dashed " + (photoPreview ? "#0F6E56" : "#adb5c2"), background: photoPreview ? "#E1F5EE" : "#fff", color: photoPreview ? "#0F6E56" : "#888", fontSize: 15, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>
+            {photoPreview ? "사진 선택됨 (탭하여 변경)" : "📷 카메라로 찍기 / 갤러리에서 선택"}
           </button>
-          {hasPhoto && <button onClick={() => { setHasPhoto(false); setPhotoName(""); }} style={{ fontSize: 12, color: "#e24b4a", background: "none", border: "none", cursor: "pointer", marginBottom: 8 }}>X 사진 제거</button>}
+          {photoPreview && (
+            <div style={{ marginBottom: 12 }}>
+              <img src={photoPreview} style={{ width: "100%", borderRadius: 10, border: "1px solid #dde1e7", maxHeight: 200, objectFit: "cover" }} />
+              <button onClick={() => { setPhotoFile(null); setPhotoPreview(""); }} style={{ fontSize: 12, color: "#e24b4a", background: "none", border: "none", cursor: "pointer", marginTop: 4 }}>X 사진 제거</button>
+            </div>
+          )}
 
           <button onClick={handleSubmit} disabled={!canSubmit}
-            style={{ width: "100%", marginTop: 16, padding: "20px", borderRadius: 14, border: "none", background: canSubmit ? "#0F6E56" : "#ccc", color: "#fff", fontSize: 18, fontWeight: 700, cursor: canSubmit ? "pointer" : "not-allowed" }}>
+            style={{ width: "100%", marginTop: 8, padding: "20px", borderRadius: 14, border: "none", background: canSubmit ? "#0F6E56" : "#ccc", color: "#fff", fontSize: 18, fontWeight: 700, cursor: canSubmit ? "pointer" : "not-allowed" }}>
             {saving ? "저장 중..." : "기록 저장"}
           </button>
         </div>
@@ -339,15 +357,18 @@ export default function App() {
                       {rec.sketch && (
                         <div style={{ marginBottom: 8 }}>
                           <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>스케치</div>
-                          <img src={rec.sketch} onClick={() => setExpandedSketch(rec.sketch)}
+                          <img src={rec.sketch} onClick={() => setExpandedImg(rec.sketch)}
                             style={{ width: "100%", borderRadius: 8, border: "1px solid #dde1e7", cursor: "pointer" }} />
                           <div style={{ fontSize: 11, color: "#aaa", marginTop: 2 }}>탭하면 크게 볼 수 있어요</div>
                         </div>
                       )}
-                      {rec.memo && <p style={{ fontSize: 14, color: "#333", lineHeight: 1.6, margin: 0 }}>{rec.memo}</p>}
-                      {rec.hasPhoto && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff8e6", borderRadius: 8, padding: "8px 12px", marginTop: 8 }}>
-                          <span style={{ fontSize: 12, color: "#ba7517", fontWeight: 600 }}>사진: {rec.photoName}</span>
+                      {rec.memo && <p style={{ fontSize: 14, color: "#333", lineHeight: 1.6, margin: 0, marginBottom: rec.photoUrl ? 8 : 0 }}>{rec.memo}</p>}
+                      {rec.photoUrl && (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>사진</div>
+                          <img src={rec.photoUrl} onClick={() => setExpandedImg(rec.photoUrl)}
+                            style={{ width: "100%", borderRadius: 8, border: "1px solid #dde1e7", cursor: "pointer", maxHeight: 200, objectFit: "cover" }} />
+                          <div style={{ fontSize: 11, color: "#aaa", marginTop: 2 }}>탭하면 크게 볼 수 있어요</div>
                         </div>
                       )}
                     </div>
