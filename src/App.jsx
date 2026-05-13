@@ -29,7 +29,26 @@ function rowToRecord(row) {
     width = parts[1] || ""; height = parts[2] || ""; depth = parts[3] || "";
     memo = parts[4] || ""; unit = parts[5] || "mm"; sketch = parts[6] || "";
   }
-  return { id: row.id, user, category: row.category, width, height, depth, memo, unit, sketch, photoUrl: row.photo_name && row.has_photo ? row.photo_name : "", hasPhoto: row.has_photo, date: row.created_at };
+  return { id: row.id, user, category: row.category, width, height, depth, memo, unit, sketch, photoUrl: row.has_photo ? row.photo_name : "", hasPhoto: row.has_photo, date: row.created_at };
+}
+
+async function compressImage(file, maxWidth = 1200, quality = 0.7) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let w = img.width, h = img.height;
+        if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        canvas.toBlob((blob) => resolve(new File([blob], file.name, { type: "image/jpeg" })), "image/jpeg", quality);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function SketchPad({ onSave, onCancel }) {
@@ -117,11 +136,12 @@ export default function App() {
     return () => supabase.removeChannel(channel);
   }, [fetchRecords]);
 
-  const handlePhotoChange = (e) => {
+  const handlePhotoChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
+    const compressed = await compressImage(file);
+    setPhotoFile(compressed);
+    setPhotoPreview(URL.createObjectURL(compressed));
   };
 
   const handleSubmit = useCallback(async () => {
@@ -130,8 +150,7 @@ export default function App() {
     try {
       let photoUrl = "";
       if (photoFile) {
-        const ext = photoFile.name.split(".").pop();
-        const fileName = Date.now() + "." + ext;
+        const fileName = Date.now() + ".jpg";
         const { error: upErr } = await supabase.storage.from("photos").upload(fileName, photoFile);
         if (upErr) throw upErr;
         const { data: urlData } = supabase.storage.from("photos").getPublicUrl(fileName);
