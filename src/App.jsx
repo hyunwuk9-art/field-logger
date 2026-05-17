@@ -6,10 +6,10 @@ const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 const USERS = [
-  { id: "A", name: "김? 욱", color: "#1D9E75", bg: "#E1F5EE" },
+  { id: "A", name: "김현욱", color: "#1D9E75", bg: "#E1F5EE" },
   { id: "B", name: "김근식", color: "#185FA5", bg: "#E6F1FB" },
 ];
-const CATEGORIES = ["치수 측정", "? 장 ? 인", "? 재 발주", "공정 관 ?, "기 ?"];
+const CATEGORIES = ["치수 측정", "현장 확인", "자재 발주", "공정 관리", "기타"];
 const UNITS = ["mm", "cm", "m", "kg", "ton", "ea", "%"];
 
 function formatTime(date) {
@@ -35,7 +35,7 @@ function rowToRecord(row) {
     unit = parts[5] || "mm";
     sketch = parts[6] || "";
   }
-  // ? 러 ??? 진 지??(|| 구분??
+  // 여러 장 사진 지원 (|| 구분자)
   let photoUrls = [];
   if (row.has_photo && row.photo_name) {
     photoUrls = row.photo_name.split("||").filter(Boolean);
@@ -71,9 +71,9 @@ async function compressImage(file, maxWidth = 1200, quality = 0.75) {
   });
 }
 
-// ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
-// ? 체? 면 ?  ?치패??컴포? 트
-// ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
+// ─────────────────────────────────────────
+// 전체화면 스케치패드 컴포넌트
+// ─────────────────────────────────────────
 function SketchPad({ onSave, onCancel }) {
   const canvasRef = useRef(null);
   const drawing = useRef(false);
@@ -153,15 +153,15 @@ function SketchPad({ onSave, onCancel }) {
       position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
       background: "#1a1a2e", zIndex: 200, display: "flex", flexDirection: "column",
     }}>
-      {/* ? 단 ? 바 */}
+      {/* 상단 툴바 */}
       <div style={{
         background: "#16213e", padding: "10px 14px",
         display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
         borderBottom: "1px solid #0f3460",
       }}>
-        <span style={{ color: "#fff", fontWeight: 800, fontSize: 15, marginRight: 4 }}>? ️ ?  ? ?/span>
+        <span style={{ color: "#fff", fontWeight: 800, fontSize: 15, marginRight: 4 }}>✏️ 스케치</span>
 
-        {/* ? 상 */}
+        {/* 색상 */}
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           {colors.map((c) => (
             <button key={c} onClick={() => { setPenColor(c); setIsEraser(false); }}
@@ -187,7 +187,7 @@ function SketchPad({ onSave, onCancel }) {
           ))}
         </div>
 
-        {/* ? 구 버튼??*/}
+        {/* 도구 버튼들 */}
         <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
           <button onClick={() => setIsEraser(!isEraser)}
             style={{
@@ -195,20 +195,20 @@ function SketchPad({ onSave, onCancel }) {
               background: isEraser ? "#fff" : "rgba(255,255,255,0.1)",
               color: isEraser ? "#1a1a2e" : "#ccc",
             }}>
-            지? 개
+            지우개
           </button>
           <button onClick={undo}
             style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "rgba(255,255,255,0.1)", color: "#ccc", fontSize: 12, cursor: "pointer" }}>
-            ??? 돌리기
+            ↩ 되돌리기
           </button>
           <button onClick={clear}
             style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "rgba(226,75,74,0.2)", color: "#e24b4a", fontSize: 12, cursor: "pointer" }}>
-            ? 체 지? 기
+            전체 지우기
           </button>
         </div>
       </div>
 
-      {/* 캔버??*/}
+      {/* 캔버스 */}
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 8 }}>
         <canvas
           ref={canvasRef} width={800} height={600}
@@ -223,7 +223,7 @@ function SketchPad({ onSave, onCancel }) {
         />
       </div>
 
-      {/* ? 단 버튼 */}
+      {/* 하단 버튼 */}
       <div style={{
         background: "#16213e", padding: "12px 16px",
         display: "flex", gap: 10, borderTop: "1px solid #0f3460",
@@ -234,14 +234,16 @@ function SketchPad({ onSave, onCancel }) {
         </button>
         <button onClick={save}
           style={{ flex: 2, padding: "14px", borderRadius: 10, border: "none", background: "#0F6E56", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
-          ??? ??        </button>
+          ✓ 저장
+        </button>
       </div>
     </div>
   );
 }
 
-// ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
-// 메인 ??// ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
+// ─────────────────────────────────────────
+// 메인 앱
+// ─────────────────────────────────────────
 export default function App() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -265,7 +267,7 @@ export default function App() {
 
   const fileRef = useRef(null);
 
-  // 기록 불러? 기
+  // 기록 불러오기
   const fetchRecords = async () => {
     setLoading(true);
     setError(null);
@@ -294,14 +296,14 @@ export default function App() {
       );
       setRecords(mapped);
     } catch (e) {
-      setError("불러? 기 ? 패: " + e.message);
+      setError("불러오기 실패: " + e.message);
     }
     setLoading(false);
   };
 
   useEffect(() => { fetchRecords(); }, []);
 
-  // ? 진 ? 택 (? 러 ??
+  // 사진 선택 (여러 장)
   const handlePhotoChange = (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -311,7 +313,7 @@ export default function App() {
       reader.onload = (ev) => setPhotoPreviews((prev) => [...prev, ev.target.result]);
       reader.readAsDataURL(file);
     });
-    e.target.value = ""; // 같 ? ? 일 ? 시 ? 택 ? 용
+    e.target.value = ""; // 같은 파일 다시 선택 허용
   };
 
   const removePhoto = (index) => {
@@ -319,7 +321,8 @@ export default function App() {
     setPhotoPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // ? ??  const handleSubmit = async () => {
+  // 저장
+  const handleSubmit = async () => {
     setSaving(true);
     setError(null);
     try {
@@ -345,7 +348,8 @@ export default function App() {
       });
       if (dbErr) throw dbErr;
 
-      // ??초기??      setWidth(""); setHeight(""); setDepth("");
+      // 폼 초기화
+      setWidth(""); setHeight(""); setDepth("");
       setMemo(""); setSketch("");
       setPhotoFiles([]); setPhotoPreviews([]);
       setUnit("mm"); setCategory(CATEGORIES[0]);
@@ -353,12 +357,12 @@ export default function App() {
       await fetchRecords();
       setActiveTab("list");
     } catch (e) {
-      setError("? ??? 패: " + e.message);
+      setError("저장 실패: " + e.message);
     }
     setSaving(false);
   };
 
-  // ??  
+  // 삭제
   const handleDelete = async (id) => {
     try {
       const { error } = await supabase.from("field_records").delete().eq("id", id);
@@ -366,13 +370,14 @@ export default function App() {
       setRecords((prev) => prev.filter((r) => r.id !== id));
       setDeleteConfirm(null);
     } catch (e) {
-      setError("??   ? 패: " + e.message);
+      setError("삭제 실패: " + e.message);
     }
   };
 
   const canSubmit = !saving && (width || height || depth || memo || photoFiles.length > 0 || sketch);
 
-  // ? 짜 ?그룹??  const grouped = {};
+  // 날짜별 그룹핑
+  const grouped = {};
   records.forEach((rec) => {
     const key = formatDateKey(rec.date);
     if (!grouped[key]) grouped[key] = [];
@@ -397,7 +402,7 @@ export default function App() {
       background: "#f4f6fa", minHeight: "100vh", maxWidth: 480, margin: "0 auto",
     }}>
 
-      {/* ? ?  ? 더 ? ?  */}
+      {/* ── 헤더 ── */}
       <div style={{
         background: "#0F6E56", padding: "14px 18px",
         position: "sticky", top: 0, zIndex: 50,
@@ -405,10 +410,10 @@ export default function App() {
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div style={{ color: "#fff", fontWeight: 800, fontSize: 17 }}>?   Field Logger</div>
-            <div style={{ color: "#a8dfc9", fontSize: 11, marginTop: 1 }}>? 장 기록 ??/div>
+            <div style={{ color: "#fff", fontWeight: 800, fontSize: 17 }}>📋 Field Logger</div>
+            <div style={{ color: "#a8dfc9", fontSize: 11, marginTop: 1 }}>현장 기록 앱</div>
           </div>
-          {/* ? 용??? 환 */}
+          {/* 사용자 전환 */}
           <div style={{
             display: "flex", background: "rgba(255,255,255,0.15)",
             borderRadius: 10, padding: 3, gap: 3,
@@ -428,9 +433,9 @@ export default function App() {
         </div>
       </div>
 
-      {/* ? ?  ??? ?  */}
+      {/* ── 탭 ── */}
       <div style={{ display: "flex", background: "#fff", borderBottom: "1px solid #e6e9ef" }}>
-        {[["input", "? ️ 기록 ? 력"], ["list", "?   기록 목록"]].map(([tab, label]) => (
+        {[["input", "✏️ 기록 입력"], ["list", "📋 기록 목록"]].map(([tab, label]) => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             style={{
               flex: 1, padding: "13px", border: "none", background: "transparent",
@@ -444,7 +449,7 @@ export default function App() {
         ))}
       </div>
 
-      {/* ? ?  ? 러 메시지 ? ?  */}
+      {/* ── 에러 메시지 ── */}
       {error && (
         <div style={{
           margin: "12px 16px", padding: "12px 16px",
@@ -452,12 +457,12 @@ export default function App() {
           borderRadius: 10, color: "#e24b4a", fontSize: 13,
           display: "flex", justifyContent: "space-between", alignItems: "center",
         }}>
-          <span>? ️ {error}</span>
+          <span>⚠️ {error}</span>
           <button onClick={() => setError(null)} style={{ background: "none", border: "none", color: "#e24b4a", cursor: "pointer", fontSize: 18, lineHeight: 1 }}>×</button>
         </div>
       )}
 
-      {/* ? ?  ?  ? ?모달 ? ?  */}
+      {/* ── 스케치 모달 ── */}
       {showSketch && (
         <SketchPad
           onSave={(d) => { setSketch(d); setShowSketch(false); }}
@@ -465,7 +470,7 @@ export default function App() {
         />
       )}
 
-      {/* ? ?  ?  ?지 ?  ? ? ?  */}
+      {/* ── 이미지 확대 ── */}
       {expandedImg && (
         <div onClick={() => setExpandedImg("")}
           style={{
@@ -475,12 +480,12 @@ export default function App() {
           }}>
           <img src={expandedImg} style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 8 }} />
           <div style={{ position: "absolute", top: 16, right: 16, color: "#fff", fontSize: 14, opacity: 0.6 }}>
-            ??   ?? 힘
+            탭하면 닫힘
           </div>
         </div>
       )}
 
-      {/* ? ?  ??   ? 인 ? ?  */}
+      {/* ── 삭제 확인 ── */}
       {deleteConfirm && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -488,8 +493,8 @@ export default function App() {
           display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
         }}>
           <div style={{ background: "#fff", borderRadius: 16, padding: 24, width: "100%", maxWidth: 320 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>? 말 ??  ? 까??</div>
-            <div style={{ fontSize: 14, color: "#666", marginBottom: 20 }}>??   ??복구????? 습? 다.</div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>정말 삭제할까요?</div>
+            <div style={{ fontSize: 14, color: "#666", marginBottom: 20 }}>삭제 후 복구할 수 없습니다.</div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setDeleteConfirm(null)}
                 style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1.5px solid #dde1e7", background: "#fff", fontSize: 14, cursor: "pointer" }}>
@@ -497,15 +502,16 @@ export default function App() {
               </button>
               <button onClick={() => handleDelete(deleteConfirm)}
                 style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", background: "#e24b4a", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-                ??  
+                삭제
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═
-          ? 력 ??      ? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═ */}
+      {/* ════════════════════════════════════
+          입력 탭
+      ════════════════════════════════════ */}
       {activeTab === "input" && (
         <div style={{ padding: "16px 16px 60px" }}>
 
@@ -547,7 +553,7 @@ export default function App() {
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-              {[["W 가 ?, width, setWidth], ["H ? 로", height, setHeight], ["D 깊이", depth, setDepth]].map(([ph, val, set]) => (
+              {[["W 가로", width, setWidth], ["H 세로", height, setHeight], ["D 깊이", depth, setDepth]].map(([ph, val, set]) => (
                 <input key={ph} placeholder={ph} value={val} onChange={(e) => set(e.target.value)}
                   type="number" style={{ ...inputStyle, textAlign: "center", padding: "12px 8px" }} />
               ))}
@@ -559,9 +565,9 @@ export default function App() {
             )}
           </div>
 
-          {/* ?  ? ?*/}
+          {/* 스케치 */}
           <div style={{ marginBottom: 18 }}>
-            <label style={labelStyle}>?  ? ?/label>
+            <label style={labelStyle}>스케치</label>
             <button onClick={() => setShowSketch(true)}
               style={{
                 width: "100%", padding: "16px", borderRadius: 12,
@@ -570,7 +576,7 @@ export default function App() {
                 color: sketch ? "#0F6E56" : "#888",
                 fontSize: 14, fontWeight: 600, cursor: "pointer",
               }}>
-              {sketch ? "? ️ ?  ? ?? 료 ??? 릭? 서 ? 정" : "? ️ ?  ? ?그리 ?(? 체? 면)"}
+              {sketch ? "✏️ 스케치 완료 — 클릭해서 수정" : "✏️ 스케치 그리기 (전체화면)"}
             </button>
             {sketch && (
               <div style={{ marginTop: 8, position: "relative" }}>
@@ -582,7 +588,7 @@ export default function App() {
                     background: "#e24b4a", border: "none", borderRadius: 6,
                     padding: "4px 10px", color: "#fff", fontSize: 12, cursor: "pointer",
                   }}>
-                  ??  
+                  삭제
                 </button>
               </div>
             )}
@@ -592,19 +598,19 @@ export default function App() {
           <div style={{ marginBottom: 18 }}>
             <label style={labelStyle}>메모</label>
             <textarea
-              placeholder="? 장 ? 황, ? 이? 항 ? 을 ? 력? 세??
+              placeholder="현장 상황, 특이사항 등을 입력하세요"
               value={memo} onChange={(e) => setMemo(e.target.value)}
               rows={4}
               style={{ ...inputStyle, resize: "none", lineHeight: 1.6 }}
             />
           </div>
 
-          {/* ? 진 (? 러 ?? */}
+          {/* 사진 (여러 장) */}
           <div style={{ marginBottom: 18 }}>
             <label style={labelStyle}>
-              ? 진
+              사진
               {photoFiles.length > 0 && (
-                <span style={{ color: "#0F6E56", marginLeft: 6 }}>({photoFiles.length}??? 택??</span>
+                <span style={{ color: "#0F6E56", marginLeft: 6 }}>({photoFiles.length}장 선택됨)</span>
               )}
             </label>
             <input ref={fileRef} type="file" accept="image/*" multiple onChange={handlePhotoChange} style={{ display: "none" }} />
@@ -616,7 +622,7 @@ export default function App() {
                 color: photoFiles.length > 0 ? "#0F6E56" : "#888",
                 fontSize: 14, fontWeight: 600, cursor: "pointer",
               }}>
-              ?   ? 진 추 ? (? 러 ??? 시 ? 택 가??
+              📷 사진 추가 (여러 장 동시 선택 가능)
             </button>
             {photoPreviews.length > 0 && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 10 }}>
@@ -640,7 +646,7 @@ export default function App() {
             )}
           </div>
 
-          {/* ? ??버튼 */}
+          {/* 저장 버튼 */}
           <button onClick={handleSubmit} disabled={!canSubmit}
             style={{
               width: "100%", padding: "18px", borderRadius: 14, border: "none",
@@ -648,33 +654,36 @@ export default function App() {
               color: "#fff", fontSize: 17, fontWeight: 700,
               cursor: canSubmit ? "pointer" : "not-allowed",
             }}>
-            {saving ? "? ?? ?.." : "??기록 ? ??}
+            {saving ? "저장 중..." : "✓ 기록 저장"}
           </button>
           {!canSubmit && !saving && (
             <div style={{ textAlign: "center", fontSize: 12, color: "#aaa", marginTop: 8 }}>
-              치수, 메모, ?  ? ? ? 진  ?? 나 ? 상 ? 력? 세??            </div>
+              치수, 메모, 스케치, 사진 중 하나 이상 입력하세요
+            </div>
           )}
         </div>
       )}
 
-      {/* ? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═
-          목록 ??      ? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═? ═ */}
+      {/* ════════════════════════════════════
+          목록 탭
+      ════════════════════════════════════ */}
       {activeTab === "list" && (
         <div style={{ padding: "16px 16px 60px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <div style={{ fontSize: 14, color: "#666", fontWeight: 600 }}>
-               ?{records.length} ?            </div>
+              총 {records.length}건
+            </div>
             <button onClick={fetchRecords} disabled={loading}
               style={{
                 padding: "8px 16px", borderRadius: 10,
                 border: "1.5px solid #dde1e7", background: "#fff",
                 color: "#555", fontSize: 13, fontWeight: 600, cursor: "pointer",
               }}>
-              {loading ? "로딩  ?.." : "?   ? 로고침"}
+              {loading ? "로딩 중..." : "🔄 새로고침"}
             </button>
           </div>
 
-          {/* ? 짜 ? 터 */}
+          {/* 날짜 필터 */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
             <button onClick={() => setFilterDate("")}
               style={{
@@ -684,7 +693,7 @@ export default function App() {
                 color: !filterDate ? "#0F6E56" : "#666",
                 fontSize: 13, cursor: "pointer",
               }}>
-              ? 체
+              전체
             </button>
             {allDates.map((d) => (
               <button key={d} onClick={() => setFilterDate(d)}
@@ -700,14 +709,14 @@ export default function App() {
             ))}
           </div>
 
-          {loading && <div style={{ textAlign: "center", padding: "60px 0", color: "#aaa" }}>불러? 는  ?..</div>}
+          {loading && <div style={{ textAlign: "center", padding: "60px 0", color: "#aaa" }}>불러오는 중...</div>}
           {!loading && filteredKeys.length === 0 && (
-            <div style={{ textAlign: "center", padding: "60px 0", color: "#aaa" }}>기록??? 습? 다</div>
+            <div style={{ textAlign: "center", padding: "60px 0", color: "#aaa" }}>기록이 없습니다</div>
           )}
 
           {!loading && filteredKeys.map((dateKey) => (
             <div key={dateKey}>
-              {/* ? 짜 구분??*/}
+              {/* 날짜 구분선 */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "18px 0 10px" }}>
                 <div style={{ height: 1, flex: 1, background: "#dde1e7" }} />
                 <div style={{
@@ -733,7 +742,7 @@ export default function App() {
                       border: "1px solid #e6e9ef", padding: "14px 16px",
                       borderLeft: "4px solid " + rec.user.color,
                     }}>
-                      {/* ? 더 */}
+                      {/* 헤더 */}
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, alignItems: "center" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <span style={{ fontSize: 13, fontWeight: 700, color: rec.user.color }}>{rec.user.name}</span>
@@ -744,7 +753,7 @@ export default function App() {
                             background: "#fff0f0", border: "none", borderRadius: 8,
                             padding: "5px 10px", color: "#e24b4a", fontSize: 12, cursor: "pointer",
                           }}>
-                          ?   ??  
+                          🗑 삭제
                         </button>
                       </div>
 
@@ -763,12 +772,12 @@ export default function App() {
                           marginBottom: 10, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap",
                         }}>
                           {rec.width && <div style={{ textAlign: "center" }}>
-                            <div style={{ fontSize: 10, color: "#5DCAA5" }}>가 ?W)</div>
+                            <div style={{ fontSize: 10, color: "#5DCAA5" }}>가로(W)</div>
                             <div style={{ fontSize: 20, fontWeight: 800, color: "#0F6E56" }}>{rec.width}</div>
                           </div>}
                           {rec.width && rec.height && <div style={{ color: "#aaa", fontSize: 16 }}>×</div>}
                           {rec.height && <div style={{ textAlign: "center" }}>
-                            <div style={{ fontSize: 10, color: "#5DCAA5" }}>? 로(H)</div>
+                            <div style={{ fontSize: 10, color: "#5DCAA5" }}>세로(H)</div>
                             <div style={{ fontSize: 20, fontWeight: 800, color: "#0F6E56" }}>{rec.height}</div>
                           </div>}
                           {rec.depth && <div style={{ color: "#aaa", fontSize: 16 }}>×</div>}
@@ -780,10 +789,10 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* ?  ? ?*/}
+                      {/* 스케치 */}
                       {rec.sketch && (
                         <div style={{ marginBottom: 10 }}>
-                          <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>? ️ ?  ? ?/div>
+                          <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>✏️ 스케치</div>
                           <img src={rec.sketch} onClick={() => setExpandedImg(rec.sketch)}
                             style={{ width: "100%", borderRadius: 8, border: "1px solid #dde1e7", cursor: "pointer" }} />
                         </div>
@@ -796,11 +805,11 @@ export default function App() {
                         </p>
                       )}
 
-                      {/* ? 진 (? 러 ?? */}
+                      {/* 사진 (여러 장) */}
                       {rec.photoUrls && rec.photoUrls.length > 0 && (
                         <div>
                           <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>
-                            ?   ? 진 ({rec.photoUrls.length}??
+                            📷 사진 ({rec.photoUrls.length}장)
                           </div>
                           <div style={{
                             display: "grid",
@@ -830,7 +839,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ? 로??+ 버튼 */}
+      {/* 플로팅 + 버튼 */}
       {activeTab === "list" && (
         <button onClick={() => setActiveTab("input")}
           style={{
