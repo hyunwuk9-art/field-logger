@@ -341,6 +341,7 @@ export default function App() {
 
       const { error: dbErr } = await supabase.from("field_records").insert({
         user_id: currentUser.id,
+        user_name: currentUser.name,
         category,
         memo: memoStr,
         has_photo: photoNames.length > 0,
