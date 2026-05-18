@@ -390,7 +390,10 @@ export default function App() {
   const inputStyle = {
     width: "100%", padding: "14px", borderRadius: 10,
     border: "1.5px solid #dde1e7", fontSize: 15, background: "#fff",
+    color: "#1a1a1a",
     boxSizing: "border-box", outline: "none", fontFamily: "inherit",
+    WebkitTextFillColor: "#1a1a1a",
+    colorScheme: "light",
   };
   const labelStyle = {
     fontSize: 13, fontWeight: 700, color: "#444",
