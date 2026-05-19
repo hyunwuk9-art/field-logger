@@ -35,7 +35,6 @@ function rowToRecord(row) {
     unit = parts[5] || "mm";
     sketch = parts[6] || "";
   }
-  // 여러 장 사진 지원 (|| 구분자)
   let photoUrls = [];
   if (row.has_photo && row.photo_name) {
     photoUrls = row.photo_name.split("||").filter(Boolean);
@@ -71,9 +70,6 @@ async function compressImage(file, maxWidth = 1200, quality = 0.75) {
   });
 }
 
-// ─────────────────────────────────────────
-// 전체화면 스케치패드 컴포넌트
-// ─────────────────────────────────────────
 function SketchPad({ onSave, onCancel }) {
   const canvasRef = useRef(null);
   const drawing = useRef(false);
@@ -153,7 +149,6 @@ function SketchPad({ onSave, onCancel }) {
       position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
       background: "#1a1a2e", zIndex: 200, display: "flex", flexDirection: "column",
     }}>
-      {/* 상단 툴바 */}
       <div style={{
         background: "#16213e", padding: "10px 14px",
         display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
@@ -161,7 +156,6 @@ function SketchPad({ onSave, onCancel }) {
       }}>
         <span style={{ color: "#fff", fontWeight: 800, fontSize: 15, marginRight: 4 }}>✏️ 스케치</span>
 
-        {/* 색상 */}
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           {colors.map((c) => (
             <button key={c} onClick={() => { setPenColor(c); setIsEraser(false); }}
@@ -172,7 +166,6 @@ function SketchPad({ onSave, onCancel }) {
           ))}
         </div>
 
-        {/* 굵기 */}
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: 4 }}>
           {sizes.map((s) => (
             <button key={s} onClick={() => { setPenSize(s); setIsEraser(false); }}
@@ -187,7 +180,6 @@ function SketchPad({ onSave, onCancel }) {
           ))}
         </div>
 
-        {/* 도구 버튼들 */}
         <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
           <button onClick={() => setIsEraser(!isEraser)}
             style={{
@@ -208,7 +200,6 @@ function SketchPad({ onSave, onCancel }) {
         </div>
       </div>
 
-      {/* 캔버스 */}
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 8 }}>
         <canvas
           ref={canvasRef} width={800} height={600}
@@ -223,7 +214,6 @@ function SketchPad({ onSave, onCancel }) {
         />
       </div>
 
-      {/* 하단 버튼 */}
       <div style={{
         background: "#16213e", padding: "12px 16px",
         display: "flex", gap: 10, borderTop: "1px solid #0f3460",
@@ -241,9 +231,6 @@ function SketchPad({ onSave, onCancel }) {
   );
 }
 
-// ─────────────────────────────────────────
-// 메인 앱
-// ─────────────────────────────────────────
 export default function App() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -261,13 +248,23 @@ export default function App() {
   const [sketch, setSketch] = useState("");
   const [showSketch, setShowSketch] = useState(false);
   const [activeTab, setActiveTab] = useState("input");
+  const [mainMode, setMainMode] = useState("records");
+  const [scheduleView, setScheduleView] = useState("list");
+  const [schedules, setSchedules] = useState([]);
+  const [schTitle, setSchTitle] = useState("");
+  const [schDate, setSchDate] = useState(new Date().toISOString().slice(0, 10));
+  const [schMemo, setSchMemo] = useState("");
+  const [schSaving, setSchSaving] = useState(false);
+  const [showSchForm, setShowSchForm] = useState(false);
+  const [calMonth, setCalMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [selectedCalDate, setSelectedCalDate] = useState("");
+  const [schDeleteConfirm, setSchDeleteConfirm] = useState(null);
   const [filterDate, setFilterDate] = useState("");
   const [expandedImg, setExpandedImg] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const fileRef = useRef(null);
 
-  // 기록 불러오기
   const fetchRecords = async () => {
     setLoading(true);
     setError(null);
@@ -301,9 +298,68 @@ export default function App() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchRecords(); }, []);
+  useEffect(() => { fetchRecords(); fetchSchedules(); }, []);
 
-  // 사진 선택 (여러 장)
+  const fetchSchedules = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("schedules")
+        .select("*")
+        .order("schedule_date", { ascending: true });
+      if (error) throw error;
+      setSchedules(data || []);
+    } catch (e) {
+      console.error("일정 로드 실패:", e.message);
+    }
+  };const handleAddSchedule = async () => {
+    if (!schTitle.trim() || !schDate) return;
+    setSchSaving(true);
+    setError(null);
+    try {
+      const { error } = await supabase.from("schedules").insert({
+        title: schTitle.trim(),
+        schedule_date: schDate,
+        memo: schMemo.trim(),
+        done: false,
+        user_id: currentUser.id,
+        user_name: currentUser.name,
+      });
+      if (error) throw error;
+      setSchTitle("");
+      setSchMemo("");
+      setSchDate(new Date().toISOString().slice(0, 10));
+      setShowSchForm(false);
+      await fetchSchedules();
+    } catch (e) {
+      setError("일정 저장 실패: " + e.message);
+    }
+    setSchSaving(false);
+  };
+
+  const toggleScheduleDone = async (id, currentDone) => {
+    try {
+      const { error } = await supabase
+        .from("schedules")
+        .update({ done: !currentDone })
+        .eq("id", id);
+      if (error) throw error;
+      setSchedules((prev) => prev.map((s) => s.id === id ? { ...s, done: !currentDone } : s));
+    } catch (e) {
+      setError("완료 처리 실패: " + e.message);
+    }
+  };
+
+  const handleDeleteSchedule = async (id) => {
+    try {
+      const { error } = await supabase.from("schedules").delete().eq("id", id);
+      if (error) throw error;
+      setSchedules((prev) => prev.filter((s) => s.id !== id));
+      setSchDeleteConfirm(null);
+    } catch (e) {
+      setError("일정 삭제 실패: " + e.message);
+    }
+  };
+
   const handlePhotoChange = (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -313,7 +369,7 @@ export default function App() {
       reader.onload = (ev) => setPhotoPreviews((prev) => [...prev, ev.target.result]);
       reader.readAsDataURL(file);
     });
-    e.target.value = ""; // 같은 파일 다시 선택 허용
+    e.target.value = "";
   };
 
   const removePhoto = (index) => {
@@ -321,7 +377,6 @@ export default function App() {
     setPhotoPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // 저장
   const handleSubmit = async () => {
     setSaving(true);
     setError(null);
@@ -349,7 +404,6 @@ export default function App() {
       });
       if (dbErr) throw dbErr;
 
-      // 폼 초기화
       setWidth(""); setHeight(""); setDepth("");
       setMemo(""); setSketch("");
       setPhotoFiles([]); setPhotoPreviews([]);
@@ -363,7 +417,6 @@ export default function App() {
     setSaving(false);
   };
 
-  // 삭제
   const handleDelete = async (id) => {
     try {
       const { error } = await supabase.from("field_records").delete().eq("id", id);
@@ -377,7 +430,6 @@ export default function App() {
 
   const canSubmit = !saving && (width || height || depth || memo || photoFiles.length > 0 || sketch);
 
-  // 날짜별 그룹핑
   const grouped = {};
   records.forEach((rec) => {
     const key = formatDateKey(rec.date);
@@ -406,7 +458,6 @@ export default function App() {
       background: "#f4f6fa", minHeight: "100vh", maxWidth: 480, margin: "0 auto",
     }}>
 
-      {/* ── 헤더 ── */}
       <div style={{
         background: "#0F6E56", padding: "14px 18px",
         position: "sticky", top: 0, zIndex: 50,
@@ -417,7 +468,6 @@ export default function App() {
             <div style={{ color: "#fff", fontWeight: 800, fontSize: 17 }}>📋 Field Logger</div>
             <div style={{ color: "#a8dfc9", fontSize: 11, marginTop: 1 }}>현장 기록 앱</div>
           </div>
-          {/* 사용자 전환 */}
           <div style={{
             display: "flex", background: "rgba(255,255,255,0.15)",
             borderRadius: 10, padding: 3, gap: 3,
@@ -428,7 +478,7 @@ export default function App() {
                   padding: "7px 14px", borderRadius: 8, border: "none",
                   background: currentUser.id === u.id ? "#fff" : "transparent",
                   color: currentUser.id === u.id ? u.color : "rgba(255,255,255,0.8)",
-                  fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.15s",
+                  fontSize: 13, fontWeight: 700, cursor: "pointer",
                 }}>
                 {u.name}
               </button>
@@ -437,7 +487,22 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── 탭 ── */}
+      <div style={{ display: "flex", background: "#fff", borderBottom: "1px solid #e6e9ef" }}>
+        {[["records", "📋 현장 기록"], ["schedules", "📅 일정"]].map(([m, label]) => (
+          <button key={m} onClick={() => setMainMode(m)}
+            style={{
+              flex: 1, padding: "14px", border: "none", background: "transparent",
+              color: mainMode === m ? "#0F6E56" : "#999",
+              fontSize: 15, fontWeight: 800,
+              borderBottom: mainMode === m ? "3px solid #0F6E56" : "3px solid transparent",
+              cursor: "pointer",
+            }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mainMode === "records" && (
       <div style={{ display: "flex", background: "#fff", borderBottom: "1px solid #e6e9ef" }}>
         {[["input", "✏️ 기록 입력"], ["list", "📋 기록 목록"]].map(([tab, label]) => (
           <button key={tab} onClick={() => setActiveTab(tab)}
@@ -452,8 +517,8 @@ export default function App() {
           </button>
         ))}
       </div>
+      )}
 
-      {/* ── 에러 메시지 ── */}
       {error && (
         <div style={{
           margin: "12px 16px", padding: "12px 16px",
@@ -466,7 +531,6 @@ export default function App() {
         </div>
       )}
 
-      {/* ── 스케치 모달 ── */}
       {showSketch && (
         <SketchPad
           onSave={(d) => { setSketch(d); setShowSketch(false); }}
@@ -474,7 +538,6 @@ export default function App() {
         />
       )}
 
-      {/* ── 이미지 확대 ── */}
       {expandedImg && (
         <div onClick={() => setExpandedImg("")}
           style={{
@@ -483,13 +546,9 @@ export default function App() {
             display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
           }}>
           <img src={expandedImg} style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 8 }} />
-          <div style={{ position: "absolute", top: 16, right: 16, color: "#fff", fontSize: 14, opacity: 0.6 }}>
-            탭하면 닫힘
-          </div>
         </div>
       )}
 
-      {/* ── 삭제 확인 ── */}
       {deleteConfirm && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -513,13 +572,9 @@ export default function App() {
         </div>
       )}
 
-      {/* ════════════════════════════════════
-          입력 탭
-      ════════════════════════════════════ */}
-      {activeTab === "input" && (
+      {mainMode === "records" && activeTab === "input" && (
         <div style={{ padding: "16px 16px 60px" }}>
 
-          {/* 카테고리 */}
           <div style={{ marginBottom: 18 }}>
             <label style={labelStyle}>카테고리</label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -538,7 +593,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* 치수 */}
           <div style={{ marginBottom: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <label style={{ ...labelStyle, marginBottom: 0 }}>치수</label>
@@ -567,10 +621,7 @@ export default function App() {
                 {[width, height, depth].filter(Boolean).join(" × ")} {unit}
               </div>
             )}
-          </div>
-
-          {/* 스케치 */}
-          <div style={{ marginBottom: 18 }}>
+          </div><div style={{ marginBottom: 18 }}>
             <label style={labelStyle}>스케치</label>
             <button onClick={() => setShowSketch(true)}
               style={{
@@ -598,7 +649,6 @@ export default function App() {
             )}
           </div>
 
-          {/* 메모 */}
           <div style={{ marginBottom: 18 }}>
             <label style={labelStyle}>메모</label>
             <textarea
@@ -609,7 +659,6 @@ export default function App() {
             />
           </div>
 
-          {/* 사진 (여러 장) */}
           <div style={{ marginBottom: 18 }}>
             <label style={labelStyle}>
               사진
@@ -650,7 +699,6 @@ export default function App() {
             )}
           </div>
 
-          {/* 저장 버튼 */}
           <button onClick={handleSubmit} disabled={!canSubmit}
             style={{
               width: "100%", padding: "18px", borderRadius: 14, border: "none",
@@ -668,10 +716,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ════════════════════════════════════
-          목록 탭
-      ════════════════════════════════════ */}
-      {activeTab === "list" && (
+      {mainMode === "records" && activeTab === "list" && (
         <div style={{ padding: "16px 16px 60px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <div style={{ fontSize: 14, color: "#666", fontWeight: 600 }}>
@@ -687,7 +732,6 @@ export default function App() {
             </button>
           </div>
 
-          {/* 날짜 필터 */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
             <button onClick={() => setFilterDate("")}
               style={{
@@ -720,7 +764,6 @@ export default function App() {
 
           {!loading && filteredKeys.map((dateKey) => (
             <div key={dateKey}>
-              {/* 날짜 구분선 */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "18px 0 10px" }}>
                 <div style={{ height: 1, flex: 1, background: "#dde1e7" }} />
                 <div style={{
@@ -746,7 +789,6 @@ export default function App() {
                       border: "1px solid #e6e9ef", padding: "14px 16px",
                       borderLeft: "4px solid " + rec.user.color,
                     }}>
-                      {/* 헤더 */}
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, alignItems: "center" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <span style={{ fontSize: 13, fontWeight: 700, color: rec.user.color }}>{rec.user.name}</span>
@@ -761,7 +803,6 @@ export default function App() {
                         </button>
                       </div>
 
-                      {/* 카테고리 */}
                       <span style={{
                         display: "inline-block", background: "#f4f6fa", color: "#555",
                         fontSize: 11, fontWeight: 700, borderRadius: 6, padding: "3px 10px", marginBottom: 10,
@@ -769,7 +810,6 @@ export default function App() {
                         {rec.category}
                       </span>
 
-                      {/* 치수 */}
                       {(rec.width || rec.height || rec.depth) && (
                         <div style={{
                           background: "#f0fdf8", borderRadius: 8, padding: "10px 14px",
@@ -793,7 +833,6 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* 스케치 */}
                       {rec.sketch && (
                         <div style={{ marginBottom: 10 }}>
                           <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>✏️ 스케치</div>
@@ -802,14 +841,12 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* 메모 */}
                       {rec.memo && (
                         <p style={{ fontSize: 14, color: "#333", lineHeight: 1.6, margin: "0 0 10px" }}>
                           {rec.memo}
                         </p>
                       )}
 
-                      {/* 사진 (여러 장) */}
                       {rec.photoUrls && rec.photoUrls.length > 0 && (
                         <div>
                           <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>
@@ -841,10 +878,30 @@ export default function App() {
             </div>
           ))}
         </div>
+      )}{mainMode === "schedules" && (
+        <SchedulesView
+          schedules={schedules}
+          users={USERS}
+          currentUser={currentUser}
+          scheduleView={scheduleView}
+          setScheduleView={setScheduleView}
+          showSchForm={showSchForm}
+          setShowSchForm={setShowSchForm}
+          schTitle={schTitle} setSchTitle={setSchTitle}
+          schDate={schDate} setSchDate={setSchDate}
+          schMemo={schMemo} setSchMemo={setSchMemo}
+          schSaving={schSaving}
+          handleAddSchedule={handleAddSchedule}
+          toggleScheduleDone={toggleScheduleDone}
+          calMonth={calMonth} setCalMonth={setCalMonth}
+          selectedCalDate={selectedCalDate} setSelectedCalDate={setSelectedCalDate}
+          schDeleteConfirm={schDeleteConfirm} setSchDeleteConfirm={setSchDeleteConfirm}
+          handleDeleteSchedule={handleDeleteSchedule}
+          inputStyle={inputStyle} labelStyle={labelStyle}
+        />
       )}
 
-      {/* 플로팅 + 버튼 */}
-      {activeTab === "list" && (
+      {mainMode === "records" && activeTab === "list" && (
         <button onClick={() => setActiveTab("input")}
           style={{
             position: "fixed", bottom: 24, right: 24,
@@ -856,6 +913,344 @@ export default function App() {
           +
         </button>
       )}
+
+      {mainMode === "schedules" && !showSchForm && (
+        <button onClick={() => setShowSchForm(true)}
+          style={{
+            position: "fixed", bottom: 24, right: 24,
+            width: 60, height: 60, borderRadius: "50%",
+            background: "#0F6E56", color: "#fff", fontSize: 28,
+            border: "none", cursor: "pointer",
+            boxShadow: "0 4px 20px rgba(15,110,86,0.45)", zIndex: 100,
+          }}>
+          +
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SchedulesView(props) {
+  const {
+    schedules, users, scheduleView, setScheduleView,
+    showSchForm, setShowSchForm,
+    schTitle, setSchTitle, schDate, setSchDate, schMemo, setSchMemo,
+    schSaving, handleAddSchedule, toggleScheduleDone,
+    calMonth, setCalMonth, selectedCalDate, setSelectedCalDate,
+    schDeleteConfirm, setSchDeleteConfirm, handleDeleteSchedule,
+    inputStyle, labelStyle,
+  } = props;
+
+  const getUser = (id) => users.find((u) => u.id === id) || users[0];
+
+  const [year, month] = calMonth.split("-").map(Number);
+  const firstDay = new Date(year, month - 1, 1);
+  const lastDay = new Date(year, month, 0);
+  const startWeekday = firstDay.getDay();
+  const daysInMonth = lastDay.getDate();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const cells = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ymd = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    cells.push({ day: d, ymd });
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const changeMonth = (delta) => {
+    let y = year, m = month + delta;
+    if (m === 0) { m = 12; y -= 1; }
+    else if (m === 13) { m = 1; y += 1; }
+    setCalMonth(`${y}-${String(m).padStart(2, "0")}`);
+    setSelectedCalDate("");
+  };
+
+  const schedulesByDate = {};
+  schedules.forEach((s) => {
+    if (!schedulesByDate[s.schedule_date]) schedulesByDate[s.schedule_date] = [];
+    schedulesByDate[s.schedule_date].push(s);
+  });
+
+  const selectedSchedules = selectedCalDate ? (schedulesByDate[selectedCalDate] || []) : [];
+
+  return (
+    <div style={{ padding: "16px 16px 80px" }}>
+      <div style={{
+        display: "flex", background: "#fff", borderRadius: 10,
+        padding: 3, marginBottom: 16, gap: 3,
+        border: "1px solid #e6e9ef",
+      }}>
+        {[["list", "📋 리스트"], ["calendar", "📅 캘린더"]].map(([v, label]) => (
+          <button key={v} onClick={() => setScheduleView(v)}
+            style={{
+              flex: 1, padding: "10px", border: "none", borderRadius: 8,
+              background: scheduleView === v ? "#0F6E56" : "transparent",
+              color: scheduleView === v ? "#fff" : "#666",
+              fontSize: 14, fontWeight: 700, cursor: "pointer",
+            }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {showSchForm && (
+        <div style={{
+          background: "#fff", borderRadius: 14, padding: 18,
+          border: "1.5px solid #0F6E56", marginBottom: 16,
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "#0F6E56", marginBottom: 14 }}>
+            ➕ 새 일정 추가
+          </div>
+
+          <label style={labelStyle}>제목</label>
+          <input value={schTitle} onChange={(e) => setSchTitle(e.target.value)}
+            placeholder="예: 자재 발주 마감"
+            style={{ ...inputStyle, marginBottom: 12 }} />
+
+          <label style={labelStyle}>날짜</label>
+          <input type="date" value={schDate} onChange={(e) => setSchDate(e.target.value)}
+            style={{ ...inputStyle, marginBottom: 12 }} />
+
+          <label style={labelStyle}>메모 (선택)</label>
+          <textarea value={schMemo} onChange={(e) => setSchMemo(e.target.value)}
+            placeholder="상세 내용을 입력하세요" rows={3}
+            style={{ ...inputStyle, resize: "none", lineHeight: 1.6, marginBottom: 14 }} />
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => { setShowSchForm(false); setSchTitle(""); setSchMemo(""); }}
+              style={{
+                flex: 1, padding: "14px", borderRadius: 10,
+                border: "1.5px solid #dde1e7", background: "#fff",
+                color: "#555", fontSize: 14, fontWeight: 600, cursor: "pointer",
+              }}>
+              취소
+            </button>
+            <button onClick={handleAddSchedule}
+              disabled={!schTitle.trim() || !schDate || schSaving}
+              style={{
+                flex: 2, padding: "14px", borderRadius: 10, border: "none",
+                background: (schTitle.trim() && schDate && !schSaving) ? "#0F6E56" : "#ccc",
+                color: "#fff", fontSize: 14, fontWeight: 700,
+                cursor: (schTitle.trim() && schDate && !schSaving) ? "pointer" : "not-allowed",
+              }}>
+              {schSaving ? "저장 중..." : "✓ 일정 저장"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {schDeleteConfirm && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.5)", zIndex: 250,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+        }}>
+          <div style={{ background: "#fff", borderRadius: 16, padding: 24, width: "100%", maxWidth: 320 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>일정을 삭제할까요?</div>
+            <div style={{ fontSize: 14, color: "#666", marginBottom: 20 }}>삭제 후 복구할 수 없습니다.</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setSchDeleteConfirm(null)}
+                style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1.5px solid #dde1e7", background: "#fff", fontSize: 14, cursor: "pointer" }}>
+                취소
+              </button>
+              <button onClick={() => handleDeleteSchedule(schDeleteConfirm)}
+                style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", background: "#e24b4a", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {scheduleView === "calendar" && (
+        <div>
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            marginBottom: 12, background: "#fff", borderRadius: 10, padding: "8px 12px",
+            border: "1px solid #e6e9ef",
+          }}>
+            <button onClick={() => changeMonth(-1)}
+              style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", padding: "4px 12px", color: "#0F6E56" }}>
+              ‹
+            </button>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#333" }}>
+              {year}년 {month}월
+            </div>
+            <button onClick={() => changeMonth(1)}
+              style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", padding: "4px 12px", color: "#0F6E56" }}>
+              ›
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>
+            {["일", "월", "화", "수", "목", "금", "토"].map((d, i) => (
+              <div key={d} style={{
+                textAlign: "center", fontSize: 12, fontWeight: 700, padding: "6px 0",
+                color: i === 0 ? "#e24b4a" : i === 6 ? "#185FA5" : "#666",
+              }}>
+                {d}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+            {cells.map((cell, i) => {
+              if (!cell) return <div key={i} />;
+              const daySchedules = schedulesByDate[cell.ymd] || [];
+              const isToday = cell.ymd === today;
+              const isSelected = cell.ymd === selectedCalDate;
+              const weekday = i % 7;
+              return (
+                <button key={i} onClick={() => setSelectedCalDate(isSelected ? "" : cell.ymd)}
+                  style={{
+                    aspectRatio: "1", padding: "4px",
+                    background: isSelected ? "#0F6E56" : isToday ? "#E1F5EE" : "#fff",
+                    color: isSelected ? "#fff" : weekday === 0 ? "#e24b4a" : weekday === 6 ? "#185FA5" : "#333",
+                    borderRadius: 8, cursor: "pointer",
+                    border: isToday && !isSelected ? "1.5px solid #0F6E56" : "1px solid #e6e9ef",
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
+                    fontSize: 13, fontWeight: 600, gap: 2,
+                  }}>
+                  <div>{cell.day}</div>
+                  {daySchedules.length > 0 && (
+                    <div style={{ display: "flex", gap: 2, flexWrap: "wrap", justifyContent: "center" }}>
+                      {daySchedules.slice(0, 3).map((s, j) => (
+                        <div key={j} style={{
+                          width: 5, height: 5, borderRadius: "50%",
+                          background: isSelected ? "#fff" : s.done ? "#ccc" : getUser(s.user_id).color,
+                        }} />
+                      ))}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedCalDate && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10, color: "#333" }}>
+                📅 {new Date(selectedCalDate + "T00:00:00").toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" })}
+              </div>
+              {selectedSchedules.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "30px 0", color: "#aaa", fontSize: 13, background: "#fff", borderRadius: 10 }}>
+                  이 날 일정이 없습니다
+                </div>
+              ) : (
+                selectedSchedules.map((s) => (
+                  <ScheduleItem key={s.id} s={s}
+                    getUser={getUser}
+                    toggleScheduleDone={toggleScheduleDone}
+                    setSchDeleteConfirm={setSchDeleteConfirm}
+                  />
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {scheduleView === "list" && (
+        <div>
+          {schedules.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "60px 0", color: "#aaa" }}>
+              일정이 없습니다. + 버튼으로 추가하세요!
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#0F6E56", marginBottom: 8 }}>
+                할 일 ({schedules.filter((s) => !s.done).length})
+              </div>
+              {schedules.filter((s) => !s.done).length === 0 && (
+                <div style={{ textAlign: "center", padding: "20px 0", color: "#aaa", fontSize: 13, background: "#fff", borderRadius: 10, marginBottom: 16 }}>
+                  모든 일정이 완료됐어요! 🎉
+                </div>
+              )}
+              {schedules.filter((s) => !s.done).map((s) => (
+                <ScheduleItem key={s.id} s={s}
+                  getUser={getUser}
+                  toggleScheduleDone={toggleScheduleDone}
+                  setSchDeleteConfirm={setSchDeleteConfirm}
+                />
+              ))}
+
+              {schedules.filter((s) => s.done).length > 0 && (
+                <>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#999", margin: "20px 0 8px" }}>
+                    완료됨 ({schedules.filter((s) => s.done).length})
+                  </div>
+                  {schedules.filter((s) => s.done).map((s) => (
+                    <ScheduleItem key={s.id} s={s}
+                      getUser={getUser}
+                      toggleScheduleDone={toggleScheduleDone}
+                      setSchDeleteConfirm={setSchDeleteConfirm}
+                    />
+                  ))}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScheduleItem({ s, getUser, toggleScheduleDone, setSchDeleteConfirm }) {
+  const u = getUser(s.user_id);
+  return (
+    <div style={{
+      background: "#fff", borderRadius: 12,
+      border: "1px solid #e6e9ef", padding: "12px 14px",
+      marginBottom: 8, borderLeft: "4px solid " + (s.done ? "#ccc" : u.color),
+      display: "flex", gap: 12, alignItems: "flex-start",
+    }}>
+      <button onClick={() => toggleScheduleDone(s.id, s.done)}
+        style={{
+          minWidth: 24, height: 24, borderRadius: 6,
+          border: "2px solid " + (s.done ? "#0F6E56" : "#ccc"),
+          background: s.done ? "#0F6E56" : "#fff",
+          color: "#fff", fontSize: 14, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 0, marginTop: 2,
+        }}>
+        {s.done ? "✓" : ""}
+      </button>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 15, fontWeight: 700,
+          color: s.done ? "#aaa" : "#333",
+          textDecoration: s.done ? "line-through" : "none",
+          wordBreak: "break-word",
+        }}>
+          {s.title}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 4, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: u.color, fontWeight: 700 }}>{u.name}</span>
+          <span style={{ fontSize: 11, color: "#aaa" }}>·</span>
+          <span style={{ fontSize: 12, color: "#666" }}>
+            {new Date(s.schedule_date + "T00:00:00").toLocaleDateString("ko-KR", { month: "short", day: "numeric", weekday: "short" })}
+          </span>
+        </div>
+        {s.memo && (
+          <div style={{
+            fontSize: 13, color: s.done ? "#bbb" : "#555",
+            marginTop: 6, lineHeight: 1.5,
+            textDecoration: s.done ? "line-through" : "none",
+            wordBreak: "break-word",
+          }}>
+            {s.memo}
+          </div>
+        )}
+      </div>
+      <button onClick={() => setSchDeleteConfirm(s.id)}
+        style={{
+          background: "none", border: "none", color: "#e24b4a",
+          fontSize: 16, cursor: "pointer", padding: "4px 6px",
+        }}>
+        🗑
+      </button>
     </div>
   );
 }
